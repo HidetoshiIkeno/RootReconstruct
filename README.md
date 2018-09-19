@@ -4,7 +4,7 @@ Reconstruction program for tree root from root point data. Tree root structure c
 
 X Y Z diameter PID dPID
 
-Hre, X, Y, Z are x, y and z coordinate values. D is diameter. PID is ID number of the root point and dPID is the PID of the connection destination. The PID of center of stump point shoud be assigned 0. The dat formatted data file can be translated into the VTK or SWC formatted files for analyzing and visualization.
+The dat file is a text file. Here, X, Y, Z are x, y and z coordinate values. D is diameter. PID is ID number of the root point and dPID is the PID of the connection destination. The PID of center of stump point shoud be assigned 0. The dat formatted data file can be translated into the VTK or SWC formatted files for analyzing and visualization.
 
 Copyright (C)  Mizue Ohashi, Hidetoshi Ikeno, Kotaro Sekihara, Toko Tanikawa, Masako Dannoura, Keitaro Yamase, Chikage Todo, Takahiro Tomita, Yasuhiro Hirano 
 
