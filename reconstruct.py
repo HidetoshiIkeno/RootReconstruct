@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # coding: utf-8
 from __future__ import division, print_function, unicode_literals
 
@@ -60,7 +61,18 @@ def inner_product(a, b):
     return dot
 
 
-def sekihara_method(src, dst, center, alpha):
+def compute_max_distance(xs, ys, zs):
+    n     = len(xs)
+    max_d = 0.0
+
+    for i in xrange(n):
+        for j in xrange(i+1, n):
+            dis = math.sqrt((xs[i]-xs[j])**2 + (ys[i]-ys[j])**2 + (zs[i]-zs[j])**2)
+            if dis > max_d: max_d = dis
+    return max_d
+
+
+def sekihara_method(src, dst, center, cost_func):
     vec_dst = [dst[0] - src[0], dst[1] - src[1], dst[2] - src[2]]
     abs_dst = math.sqrt(inner_product(vec_dst, vec_dst))
 
@@ -73,25 +85,29 @@ def sekihara_method(src, dst, center, alpha):
         cos_theta = 1.0
     else:
         cos_theta = dot / (abs_dst * abs_center)
+        if cos_theta > 0.0: cos_theta = min(cos_theta, 1.0)
+        else:               cos_theta = max(cos_theta, -1.0)
     
-    return alpha*(1.0 - cos_theta) + abs_dst
+    return cost_func(cos_theta, abs_dst)
     
 
-def construct_one_vs_one_cost(xs, ys, zs, radii, alpha, **keywords):
+def construct_one_vs_one_cost(**keywords):
+    xs, ys, zs   = keywords["xs"], keywords["ys"], keywords["zs"]
+    radii, param = keywords["radii"], keywords["param"]
+    sekihara_cos = keywords["sekihara_cos"]
+    radius_ratio = keywords["radius_ratio"]
+
     common.assert_same_size(xs=xs, ys=ys, zs=zs)
     links = []
     
     n = len(xs)
     UF = DisjointSet(n)
+    max_d = compute_max_distance(xs, ys, zs)
 
-    """
-    # ２点間の距離の最大を求める
-    max_d = 0.0
-    for i in xrange(n):
-        for j in xrange(i+1, n):
-            dis = math.sqrt((xs[i]-xs[j])**2 + (ys[i]-ys[j])**2 + (zs[i]-zs[j])**2)
-            if dis > max_d: max_d = dis
-    """
+    if sekihara_cos:
+        cost_func = lambda cos_theta, abs_dst : param * (1.0 - cos_theta) + abs_dst / max_d
+    else:
+        cost_func = lambda cos_theta, abs_dst : math.acos(cos_theta) + param * abs_dst / max_d
 
     # 中心に遠い点から順番に処理する
     order_by_dist = []
@@ -110,20 +126,20 @@ def construct_one_vs_one_cost(xs, ys, zs, radii, alpha, **keywords):
          
         for j in xrange(0, len(xs)):
             if i == j: continue
-            if j != 0 and radii[i] > 1.3 * radii[j]: continue
+            if j != 0 and not (radii[j] / radii[i] >= radius_ratio): continue
             
             # 閉路をつくらないようにする
             if UF.same(i, j): continue
 
             dst = [xs[j], ys[j], zs[j]]
-            c = sekihara_method(src, dst, center, alpha)
+            c = sekihara_method(src, dst, center, cost_func)
 
             if cost > c:
                 cost = c
                 next_index = j
-        links.append((i, next_index))
-        
+
         if next_index != -1:
+            links.append((i, next_index))
             UF.merge(i, next_index)
        
     return links, 0
@@ -220,7 +236,6 @@ def relation_mat(n, links, xs, ys):
     order_by_dist.sort(key=lambda x:x[1], reverse=True)
     
     l_max = max(depth.values())
-    # print("l_max = %d" % l_max)
      
     R = [[0]*(n-1) for _ in xrange(n-1)]
     for i in xrange(n-1):
@@ -234,7 +249,6 @@ def relation_mat(n, links, xs, ys):
                 R[i][j] = 0 
     
     return R, True 
-
 
 
 def evaluate_mat(n, links, correct_links, xs, ys):
@@ -255,6 +269,7 @@ def evaluate_edge(xs, ys, zs, rs, links, correct_links):
     ok = 0
     
     cnt_v = calc_volume.calc_edge_volume(xs, ys, zs, rs, correct_links)
+    cnt_v += 1e-10 # 正しい接続が分かっていない場合に 0 除算になることを回避する
     ok_v = 0.0
 
     for cl in correct_links:
@@ -287,7 +302,6 @@ def generate_dat(input_file, links, labels, label_to_index):
                 if lnk[0] == i:
                     to = lnk[1]
 
-            # yield "{0}{6}{1}{6}{2}{6}{3}{6}{4}{6}{5}".format(dat[0], dat[1], dat[2], dat[3], labels[i], labels[to], separator)
             yield delim.join([str(dat[0]), str(dat[1]), str(dat[2]), str(dat[3]), str(labels[i]), str(labels[to])])
 
 
@@ -296,21 +310,23 @@ def main():
     parser.add_argument('input_dat', type=str)
     parser.add_argument('output_vtk', type=str)
     parser.add_argument('--coef-radius', dest='coef_radius', type=float, default=0.05)
-    parser.add_argument('--method', type=str, choices=['sekihara', 'mst', 'mst_sekihara'], default='sekihara', help='再構築に用いる手法')
-    parser.add_argument('--output', type=str, choices=['dat', 'vtk'], default='vtk', help='出力ファイルの形式')
-    parser.add_argument('--alpha', type=float, default=1.1)
+    parser.add_argument('--method', type=str, choices=['sekihara', 'sekihara_cos', 'mst', 'mst_sekihara'], default='sekihara_cos', help='reconstruct method')
+    parser.add_argument('--output', type=str, choices=['dat', 'vtk'], default='vtk', help='output file format')
+    parser.add_argument('--param-alpha', dest='param_alpha', type=float, default=1.1)
+    parser.add_argument('--param-w', dest='param_w', type=float, default=1.1)
+    parser.add_argument('--radius-ratio', dest='radius_ratio', type=float, default=1.0)
     args = parser.parse_args()
 
     try:
         tree_data = dat2vtk.Parser.load(args.input_dat)
     except IOError as e:
-        print("[エラー] 入力ファイルが存在しません")
+        print("[Error] No such file : {}".format(args.input_dat))
         sys.exit(1)
     except dat2vtk.FileFormatError as e:
-        print("[エラー] 入力はdat形式かcsv形式のファイルを指定してください")
+        print("[Error] Unexpected file format.")
         sys.exit(1)
     except dat2vtk.FileSyntaxError as e:
-        print("[エラー] 入力ファイルが正しく記述されていません")
+        print("[Error] Syntax error.")
         sys.exit(1)
     
     correct_links, xs, ys, zs, radii_in, labels, label_to_index = dat2vtk.convert_to_simple_format_graph(tree_data)
@@ -318,10 +334,25 @@ def main():
 
     if args.method == 'mst':
         links, biggest_root = construct_minimum_spanning_tree(xs, ys, zs)
-    elif args.method == 'sekihara':
-        links, biggest_root = construct_one_vs_one_cost(xs, ys, zs, radii, args.alpha)
+    elif args.method == 'sekihara' or args.method == 'sekihara_cos':
+        if args.method == 'sekihara':
+            param = args.param_alpha
+            sekihara_cos = False
+        else:
+            param = args.param_w
+            sekihara_cos = True
+
+        links, biggest_root = construct_one_vs_one_cost(
+            xs=xs,
+            ys=ys,
+            zs=zs,
+            radii=radii,
+            param=param,
+            sekihara_cos=sekihara_cos,
+            radius_ratio=args.radius_ratio
+        )
     elif args.method == 'mst_sekihara':
-        links, biggest_root = mst_sekihara_method(xs, ys, zs, radii, args.alpha)
+        links, biggest_root = mst_sekihara_method(xs, ys, zs, radii, args.param_alpha)
 
     # 再構築結果をファイルに出力する
     with codecs.open(args.output_vtk, mode='w', encoding='utf_8') as f:
@@ -331,16 +362,18 @@ def main():
         elif args.output == 'vtk':
             for line in swc2vtk.generate_vtk(biggest_root, links, xs, ys, zs, radii):
                 print(line, file=f) 
+    print("Output file is created.\n");
 
-    # 再構築結果の評価値を表示する
-    e_cnt, e_vol = evaluate_edge(xs, ys, zs, radii, links, correct_links)
-    print("一致率 (辺)       : %.3f %%" % e_cnt)
-    print("一致率 (体積)     : %.3f %%" % e_vol)
+    if len(correct_links) > 0:
+        # 再構築結果の評価値を表示する
+        e_cnt, e_vol = evaluate_edge(xs, ys, zs, radii, links, correct_links)
+        print("Accuracy (Edge)           : %.3f %%" % e_cnt)
+        print("Accuracy (Volume)         : %.3f %%" % e_vol)
 
-    try:
-        print("一致率 (分岐次数) : %.3f %%" % evaluate_mat(len(xs), links, correct_links, xs, ys))
-    except DisconnectedException as e:
-        print("[エラー] 非連結なため, 分岐次数を計算できません")
+        try:
+            print("Accuracy (RelationMatrix) : %.3f %%" % evaluate_mat(len(xs), links, correct_links, xs, ys))
+        except DisconnectedException as e:
+            print("[Error] Given dat is disconnected.")
 
 
 if __name__ == "__main__":
