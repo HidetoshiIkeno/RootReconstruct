@@ -29,7 +29,7 @@ def generate_swc(dat_name, label_to_index, node_filter, center_height, center_ra
         if len(node_filter) != 0 and label_to_index[int(s[4])] not in node_filter: continue
 
         if s[4] == "0" and s[5] == "0":
-            # 根株
+            # the root point
             yield cast_and_join(" ", [0, 0, s[0], s[1], float(s[2])-center_height, center_radius, -1])
             yield cast_and_join(" ", [1, 0, s[0], s[1], s[2], center_radius, 0])
         else:
@@ -45,23 +45,22 @@ def main():
     parser.add_argument('--center_height', type=float, default=0)
     args = parser.parse_args() 
 
-
     try:
         tree_data = dat2vtk.Parser.load(args.input_dat)
     except IOError as e:
-        print("[エラー] 入力ファイルが存在しません")
+        print("[Error] No such file : {}".format(args.input_dat))
         sys.exit(1)
     except dat2vtk.FileFormatError as e:
-        print("[エラー] 入力はdat形式かcsv形式のファイルを指定してください")
+        print("[Error] Unexpected file format.")
         sys.exit(1)
     except dat2vtk.FileSyntaxError as e:
-        print("[エラー] 入力ファイルが正しく記述されていません")
+        print("[Error] Syntax error.")
         sys.exit(1)
 
     links, xs, ys, zs, rs, labels, label_to_index = dat2vtk.convert_to_simple_format_graph(tree_data)
     n = len(xs)
 
-    # 指定したノードから追いかける
+    # Make a set of nodes that can reach to the selected node
     dist = []
     if args.start != -1:
         tree = [[] for i in xrange(0, n)]
@@ -87,7 +86,7 @@ def main():
                 Q.append([u, s[0], (s[2] or s[0] == label_to_index[args.start])])
                 vis[u] = True
 
-    # swcファイル出力
+    # Output as swc file format
     iterator = generate_swc(args.input_dat, label_to_index, dist, args.center_height, args.center_radius) 
     with codecs.open(args.output_swc, 'w', 'utf_8') as f_out:
         for line in iterator:

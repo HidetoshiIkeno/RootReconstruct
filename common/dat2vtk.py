@@ -14,8 +14,8 @@ import sys
 
 class FileFormatError(Exception):
     """
-    入力ファイルが対応していない形式で与えられた場合に発生される例外
-    ファイルの拡張子が ".dat" か ".csv" 以外の場合に発生させる
+    Raise this error if unsupported foramt file is given.
+    Support only 'dat' or 'csv'.
     """
     pass
 
@@ -78,30 +78,30 @@ def generate_sphere(xs, ys, zs, radii, data={}):
     common.assert_same_size(xs=xs, ys=ys, zs=zs, radii=radii, **data)
     n = len(radii)
 
-    # おまじない
+    # Documation type difinition
     yield '# vtk DataFile Version 2.0'
-    # タイトル
+    # Title
     yield 'SWC Data'
-    # テキストで記述する (BINARYにするとバイナリで記述可能)
+    # Write in Text (BINARY is another option)
     yield 'ASCII'
-    # POLYDATAで記述する
+    # Write in POLYDATA
     yield 'DATASET POLYDATA'
 
-    # 点データの記述
+    # Data of the points
     yield 'POINTS {} float'.format(n)
     for i in xrange(n):
         yield '{:.7} {:.7} {:.7}'.format(xs[i], ys[i], zs[i])
 
-    # データの記述
+    # Data
     yield 'POINT_DATA {}'.format(n)
 
-    # 半径の記述
+    # Radius
     yield 'SCALARS radius float'
     yield 'LOOKUP_TABLE default'
     for radius in radii:
         yield '{:.7}'.format(radius)
 
-    # その他データの記述
+    # Others
     for key, values in data.iteritems():
         yield 'SCALARS {} float'.format(key)
         yield 'LOOKUP_TABLE default'
@@ -111,7 +111,7 @@ def generate_sphere(xs, ys, zs, radii, data={}):
 
 def convert_to_simple_format_graph(tree_data):
     """
-    Parser.load(fname)で読み込んだデータを扱いやすい形式に変換する
+    Convert the data parsed by Parser.load(fname) into simple format
 
     Parameters
     ----------
@@ -129,12 +129,9 @@ def convert_to_simple_format_graph(tree_data):
     label_to_index : {int, int}
     """
 
-    # datファイルに中心点を表す0番ノードが存在しなければならない
-    # assert 0 in tree_data.label, '入力ファイルに中心点を表す0番ノードが存在しません.'
-
-
-    # datファイルでは連番でないIDが使われているので連番に変換する
-    # 0番は中心点を表す
+    # In dat file, node id is not consecutive nubmer.
+    # Because of this, convert to internal id
+    # Point 0 is represents the root point.
     label_to_index = {}
     label_to_index[0] = 0
     
@@ -145,12 +142,11 @@ def convert_to_simple_format_graph(tree_data):
         if label not in label_to_index:
             label_to_index[label] = len(label_to_index)
 
-    # 0番ノードがない場合はエラーとする
     if not zero:
-        print("入力ファイルに中心点を表す0番ノードが存在しません.")
+        print("Point 0 must exists.")
         sys.exit(1)
 
-    # 配列の確保 (Noneをコピーするのが最も高速らしい)
+    # Assign the array (fastest way)
     # See Also : http://stackoverflow.com/questions/537086/reserve-memory-for-list-in-python
     xs = [None]*len(label_to_index)
     ys = [None]*len(label_to_index)
@@ -159,7 +155,7 @@ def convert_to_simple_format_graph(tree_data):
     radii = [None]*len(label_to_index)
     links = []
     
-    # datの独自IDから連番に変換しつつ、格納してみる
+    # Convert to an internal id
     for datum in tree_data:
         index = label_to_index[datum["label"]]
         xs[index] = datum["x"]
@@ -168,14 +164,11 @@ def convert_to_simple_format_graph(tree_data):
         labels[index] = datum["label"]
         radii[index] = datum["diameter"]
 
-    # なぜかdatファイルに欠けている点 (あるノードのparentとして
-    # 宣言されているのに、その点自身の情報が記述されていない)
-    # が存在するため、子または親が存在しないときはlinkを作らないようにする
+    # Make link iff both parent node and child node is exist
     for datum in tree_data:
         label = datum["label"]
         parent_label = datum["parent_label"]
 
-        # 子の情報も親の情報も存在する時
         if label in label_to_index and parent_label in label_to_index:
             index = label_to_index[label]
             parent_index = label_to_index[parent_label]
@@ -186,7 +179,7 @@ def convert_to_simple_format_graph(tree_data):
 
 def compute_distance(root_nodes, links, xs, ys, zs, radii):
     """
-    distanceを計算する
+    Compute the distances
 
     Parameters
     ----------
@@ -204,8 +197,7 @@ def compute_distance(root_nodes, links, xs, ys, zs, radii):
     n = len(radii)
     common.assert_same_size(xs=xs, ys=ys, zs=zs, radii=radii)
 
-
-    # collections.dequeが高速
+    # collections.deque operates at high speed
     # See Also : http://docs.python.jp/2/library/collections.html#deque
     que = deque()
     distance = [None]*n
@@ -239,56 +231,53 @@ def check_link_distance(linedata, thresh):
     g = {}
     for datum in linedata:
         if datum["label"] in g:
-            logging.warning("label={} のデータが複数あります".format(datum["label"]))
+            logging.warning("label={} is duplicated".format(datum["label"]))
 
         g[datum["label"]] = Point(datum["x"], datum["y"], datum["z"], datum["parent_label"])
 
     for label, p in g.iteritems():
         if p.parent_label not in g:
-            # logging.warning(
-            #   "label = {} の親ラベルは {} ですが, そのラベルを持つデータが見つかりません".format(label, p.parent_label))
+            logging.warning(
+                "The parent label of label {} is {}, but label {} is not exist.".format(label, p.parent_label, p.parent_label))
             continue
 
         q = g[p.parent_label]
         d = math.sqrt((p.x - q.x)**2 + (p.y - q.y)**2 + (p.z - q.z)**2)
         if d == 0.0 and label != p.parent_label:
             logging.warning(
-                "label={} と label={} の距離が 0.0 です".format(label, p.parent_label))
+                "The distance between label={} and label={} is 0.0".format(label, p.parent_label))
         if d > thresh:
             logging.warning(
-                "label={} と label={} の距離が {} (> thresh={}) です".format(label, p.parent_label, d, thresh))
+                "The distance between label={} and label={} is {} (> thresh={}) です".format(label, p.parent_label, d, thresh))
 
 
 def main():
-    # コマンドライン引数の解析
     parser = argparse.ArgumentParser()
     parser.add_argument('input_dat', type=str,
-            help="入力のdatファイル名 (CSVに似た形式)")
+            help="File name of input dat file.")
     parser.add_argument('output_vtk', type=str,
-            help="出力するvtkファイル名")
+            help="File name of output vtk file.")
     parser.add_argument(
             '--sphere', action='store_true',
-            help="チューブで繋がずにボールだけ表示する")
+            help="Show only sphere")
     parser.add_argument(
             '--coef-radius', dest='coef_radius', type=float,default=0.05,
-            help="表示するボールの大きさを決める係数 (見た目の問題)")
+            help="Adjust the radius of shpere")
     parser.add_argument('--thresh', type=float,
-            help="点と点のリンクのユークリッド距離がthreshよりも大きいとき, 警告メッセージを表示する (指定が無いときは警告無効)")
+            help="Show warning message when the distance between two points is greater than thresh")
     args = parser.parse_args()
-
 
     try:
         tree_data = Parser.load(args.input_dat)
     except IOError as e:
-        print("[エラー] 入力ファイルが存在しません")
+        print("[Error] No such file : {}".format(args.input_dat))
         sys.exit(1)
     except FileFormatError as e:
-        print("[エラー] 入力はdat形式かcsv形式のファイルを指定してください")
+        print("[Error] Unexpected file format.")
         sys.exit(1)
     except FileSyntaxError as e:
-        print("[エラー] 入力ファイルが正しく記述されていません")
+        print("[Error] Syntax error.")
         sys.exit(1)
-
 
     if args.thresh is not None:
         check_link_distance(tree_data, args.thresh)
@@ -308,10 +297,10 @@ def main():
 
     # write vtk
     if args.sphere:
-        # POINTモード
+        # POINT mode
         iterator = generate_sphere(xs, ys, zs, radii)
     else:
-        # LINEモード
+        # LINE mode
         iterator = swc2vtk.generate_vtk(0, links, xs, ys, zs, radii, {'distance': distance})
     with codecs.open(args.output_vtk, 'w', 'utf_8') as f:
         for line in iterator:

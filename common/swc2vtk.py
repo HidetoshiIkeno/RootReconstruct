@@ -27,38 +27,38 @@ def generate_vtk(root, links, xs, ys, zs, radii, data={}):
     common.assert_same_size(xs=xs, ys=ys, zs=zs, radii=radii, **data)
     n = len(radii)
 
-    # 木の辺の数はn-1であるが、現実は非情である
+    # The number of edges in a tree is n-1, but it is not guaranteed in data file
     # assert len(links) == n - 1, 'len(links) expect eq len(radii) - 1'
 
-    # おまじない
+    # Documation type difinition
     yield '# vtk DataFile Version 2.0'
-    # タイトル
+    # Title
     yield 'SWC Data'
-    # テキストで記述する (BINARYにするとバイナリで記述可能)
+    # Write in Text (BINARY is another option)
     yield 'ASCII'
-    # LINEで記述する
+    # Write in LINE
     yield 'DATASET POLYDATA'
 
-    # 点データの記述
+    # Data of the points
     yield 'POINTS {} float'.format(n)
     for i in xrange(n):
         yield '{:.7} {:.7} {:.7}'.format(xs[i], ys[i], zs[i])
 
-    # 線データの記述
+    # LINE Data
     yield 'LINES {} {}'.format(len(links), 3*len(links))
     for link in links:
         yield '2 {} {}'.format(link[0], link[1])
 
-    # データの記述
+    # Data
     yield 'POINT_DATA {}'.format(n)
 
-    # 半径の記述
+    # Radius
     yield 'SCALARS radius float'
     yield 'LOOKUP_TABLE default'
     for radius in radii:
         yield '{:.7}'.format(radius)
 
-    # その他データの記述
+    # Othes
     for key, values in data.iteritems():
         yield 'SCALARS {} float'.format(key)
         yield 'LOOKUP_TABLE default'
@@ -82,8 +82,7 @@ def parse_swc(fname):
     radii : [float]
     """
 
-    # ノードIDが連続していないので、
-    # 座標圧縮のようなことをして、連続に並ぶようにする
+    # Convert to internal id
     data = []
     label_to_index = {}
     with codecs.open(fname, encoding='utf_8') as f:
@@ -121,7 +120,6 @@ def parse_swc(fname):
 
 
 def main():
-    # コマンドライン引数の解析
     parser = argparse.ArgumentParser()
     parser.add_argument('input_swc')
     parser.add_argument('output_vtk')
