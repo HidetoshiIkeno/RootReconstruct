@@ -6,10 +6,7 @@ import sys
 
 def set_terminal_encoding(encoding='utf_8'):
     """
-    端末とPython間のエンコーディングを設定する。
-
-    stdout，stderrは問題ないのだが，stdinの動作が直感と反する環境もあるので注意。
-    (例:MacではControl-Zを入力しないと入力が確定されない)
+    Set encoding in accordance with the terminal
     """
     sys.stdin = codecs.getreader(encoding)(sys.stdin)
     sys.stdout = codecs.getwriter(encoding)(sys.stdout)
@@ -17,7 +14,7 @@ def set_terminal_encoding(encoding='utf_8'):
 
 def assert_same_size(**keywords):
     """
-    渡されたリストのサイズが同じであるかどうかチェックする
+    Compare the size of passed lists and assertion
     """
     keys = keywords.keys()
     n = len(keys)
