@@ -13,7 +13,7 @@ $ python reconstruct.py input.dat output.dat --radius-ratio R --param-w W
 
 Here, R is the ratio of the diameter of the target point to the point included in the connection candidate point.　W is a parameter for determining the priority ratio of the angle and the distance in determining the connection destination.
 
-Copyright (C)  Mizue Ohashi, Hidetoshi Ikeno, Kotaro Sekihara, Toko Tanikawa, Masako Dannoura, Keitaro Yamase, Chikage Todo, Takahiro Tomita, Yasuhiro Hirano 
+Copyright (C)  GPR Research Group, Mizue Ohashi, Hidetoshi Ikeno, Kotaro Sekihara, Toko Tanikawa, Masako Dannoura, Keitaro Yamase, Chikage Todo, Takahiro Tomita, Yasuhiro Hirano 
 
 <b>Reference</b> <br>
 M. Ohashi, H. Ikeno, K. Sekihara, T. Tanikawa, M. Dannoura, K. Yamase, C. Todo, T. Tomita, Y. Hirano, Reconstruction of root systems in Cryptomeria japonica using root point coordinates and diamete, Planta, to be published.
